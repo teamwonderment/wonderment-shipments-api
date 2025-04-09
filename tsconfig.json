@@ -1,0 +1,14 @@
+{
+  "compilerOptions": {
+      "target": "ES2020",
+      "module": "ES2020",
+      "esModuleInterop": true,
+      "skipLibCheck": true,
+      "forceConsistentCasingInFileNames": true,
+      "outDir": ".",
+      "strict": true,
+      "moduleResolution": "node"
+  },
+  "files": ["tracking-client.ts"],
+  "exclude": ["node_modules"]
+}

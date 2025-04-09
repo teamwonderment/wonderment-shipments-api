@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Tracking Widget Demo</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 20px auto;
+            padding: 0 20px;
+        }
+        .status-header { margin-bottom: 20px; }
+        .tracking-table { 
+            width: 100%; 
+            border-collapse: collapse; 
+            margin-top: 20px;
+        }
+        .tracking-table th, .tracking-table td {
+            padding: 8px;
+            border: 1px solid #ddd;
+            text-align: left;
+        }
+        .tracking-table th { 
+            background-color: #f2f2f2; 
+        }
+        .status-tag { 
+            display: inline-block;
+            padding: 5px 10px;
+            border-radius: 3px;
+            font-weight: bold;
+        }
+        .status-PENDING { background-color: #ffd700; }
+        .status-DELIVERED { background-color: #4CAF50; color: white; }
+        .status-FAILED { background-color: #f44336; color: white; }
+        .status-IN_TRANSIT { background-color: #2196F3; color: white; }
+        .status-PICKED_UP { background-color: #ff9800; color: white; }
+    </style>
+</head>
+<body>
+    <h1>Shipment Tracking Demo</h1>
+    <div id="tracking-widget"></div>
+    <script type="module" src="/tracking-client.js"></script>
+    <script type="module">
+        import { TrackingWidget } from '/tracking-client.js';
+        
+        const widget = new TrackingWidget('tracking-widget');
+        widget.track('9200190379218000011551'); // Example tracking number from your Wonderment account. Preview will show a sample of the data. 
+    </script>
+</body>
+</html>
