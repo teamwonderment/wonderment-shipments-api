@@ -16,20 +16,28 @@ export class TrackingWidget {
         this.container = element;
     }
 
-    async track(searchTerm: string): Promise<void> {
-        try {
-            const response = await fetch('/api/tracking', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({ searchTerm })
-            });
+    async track(trackingData: string): Promise<void> {
+        const [searchTerm, token] = trackingData.split('?t=');
 
+
+        if (!searchTerm) {
+            console.error('Missing searchTerm in tracking data');
+            alert('Search term is required.');
+            return;
+        }
+        if (!token) {
+            console.error('Missing token (t) in tracking data');
+            alert('Token (t) is required.');
+            return;
+        }
+      
+        try {
+            const response = await fetch(`/api/tracking/${searchTerm}?t=${encodeURIComponent(token)}`, {
+                method: 'POST',
+            });
             if (!response.ok) {
                 throw new Error('Failed to fetch tracking data');
             }
-
             const data = await response.json();
             this.render(data);
         } catch (error: any) {
