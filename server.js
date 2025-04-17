@@ -2,7 +2,7 @@ const express = require('express');
 const path = require('path');
 const cors = require('cors');
 const axios = require('axios');
-
+require('dotenv').config();
 const app = express();
 
 // Basic middleware
@@ -12,29 +12,36 @@ app.use(express.json());
 // Request logging
 app.use((req, res, next) => {
     console.log(`[${new Date().toISOString()}] ${req.method} ${req.url}`);
-    console.log('Request body:', req.body);
     next();
 });
 
 // API endpoint for tracking
-app.post('/api/tracking', async (req, res) => {
-    try {
-        console.log('Tracking endpoint hit with body:', req.body);
-        
-        const { searchTerm } = req.body;
+app.post('/api/tracking/:searchTerm', async (req, res) => {
+    try {        
+        const { searchTerm } = req.params;
+        const { t } = req.query;
+
+        console.log('Request params:', req.params);
+        console.log('Request query:', req.query);
+
         if (!searchTerm) {
             console.log('Missing searchTerm in request');
             return res.status(400).json({ error: 'searchTerm is required' });
         }
 
-        console.log('Making request to Wonderment API with searchTerm:', searchTerm);
-        const apiUrl = 'https://api.wonderment.com/2022-10/shipments/search';
+        if (!t) {
+            console.log('Missing token (t) in request');
+            return res.status(400).json({ error: 'Token (t) is required' });
+        }
+       
+        console.log('Making request to Wonderment API with searchTerm:', searchTerm, 'and token:', t);
+        const apiUrl = `https://api.wonderment.com/2022-10/shipments/search/${encodeURIComponent(searchTerm)}?t=${encodeURIComponent(t)}`;
         const response = await axios({
             method: 'get',
-            url: `${apiUrl}/${encodeURIComponent(searchTerm)}`,
+            url: apiUrl,
             headers: {
                 'Accept': 'application/json',
-                'X-Wonderment-Access-Token': '' // ADD YOUR KEY HERE
+                'X-Wonderment-Access-Token': process.env.WONDERMENT_DEMO_API_KEY // ADD YOUR KEY HERE
             }
         });
 
