@@ -1,141 +1,233 @@
 # Shipment Tracking API Example
 
-A minimal implementation of a headless tracking page using the Wonderment Tracking API. This example demonstrates how to create a simple tracking widget that can be embedded in any webpage.
+A minimal TypeScript/JavaScript example of a **headless tracking page** built on Wonderment’s **Shipments Search API**.
+
+Use this repo to learn how the API works end-to-end: look up a shipment by tracking number or order name, pass a small customer auth token, and render status + events in a simple browser widget.
+
+## What you’ll learn
+
+1. How Wonderment’s Shipments Search endpoint is called (`GET /2022-10/shipments/search/...`)
+2. Why your **API key stays on a server** (never in the browser)
+3. How the optional **`t` auth token** proves the visitor is allowed to see that order
+4. How a tiny widget turns the JSON response into a tracking UI
+
+## How the pieces fit together
+
+```
+Browser (TrackingWidget)
+    → POST /api/tracking/:searchTerm?t=...   (your local Express server)
+        → GET https://api.wonderment.com/2022-10/shipments/search/:searchTerm?t=...
+            (Wonderment Shipments Search API + your access token)
+```
+
+| Piece | Role |
+| --- | --- |
+| `index.html` | Demo page that creates the widget and calls `track(...)` |
+| `tracking-client.ts` / `.js` | Browser widget: calls your server, renders status + events |
+| `server.js` | Local proxy: holds the API key, forwards the search to Wonderment |
+| `ShipmentsApiExample.ts` | Alternate typed Express wrapper (cache, rate limit, validation) |
+
+The browser never talks to Wonderment directly. That keeps `X-Wonderment-Access-Token` secret.
 
 ## Prerequisites
 
-- Node.js (v14 or higher)
-- npm (comes with Node.js)
-- A Wonderment API key
+- Node.js (v14 or higher) and npm
+- A Wonderment API key (from your Wonderment / Track by Loop account)
+- A real tracking number **or** order name from that same shop
+- A matching customer auth token (`t`) when search auth is enabled for the shop
 
 ## Quick Start
 
 1. Clone this repository:
+
 ```bash
-git clone https://github.com/yourusername/shipment-api-example.git
-cd shipment-api-example
+git clone https://github.com/teamwonderment/wonderment-shipments-api.git
+cd wonderment-shipments-api
 ```
 
 2. Install dependencies:
+
 ```bash
 npm install
 ```
 
-3. Update the API key in `server.js`:
-```javascript
-// Replace with your Wonderment API key
-'X-Wonderment-Access-Token': 'your_api_key_here'
+3. Set your API key in a `.env` file in the project root (recommended):
+
+```bash
+WONDERMENT_DEMO_API_KEY=your_api_key_here
 ```
 
-4. Update the test tracking number in `index.html`:
+`server.js` reads that value and sends it as the `X-Wonderment-Access-Token` header. Do **not** put the key in `index.html` or `tracking-client.js`.
+
+4. Update the sample lookup in `index.html` with a tracking number (or order name) and auth token from your shop:
+
 ```javascript
-// Replace with your test tracking number
-widget.track('your_test_tracking_number');
+// Format: "<searchTerm>?t=<base64-token>"
+widget.track('9200190379218000011551?t=eyJlbWFpbCI6IndvbmdiaW5AZ21haWwuY29tIn0=');
 ```
 
 5. Start the server:
+
 ```bash
 node server.js
 ```
 
-6. Open your browser and navigate to:
+6. Open [http://localhost:3000](http://localhost:3000). You should see shipment status and a table of tracking events.
+
+## Understanding the Shipments Search API
+
+### Endpoint
+
+```http
+GET https://api.wonderment.com/2022-10/shipments/search/{searchTerm}?t={token}
 ```
-http://localhost:3000
+
+Headers:
+
+```http
+Accept: application/json
+X-Wonderment-Access-Token: <your Wonderment API key>
 ```
 
-## Project Structure
+This example’s server builds that request for you in `server.js`.
 
-- `server.js` - Express server handling API requests and static file serving
-- `tracking-client.js` - Client-side tracking widget implementation
-- `index.html` - Example implementation of the tracking widget
+### `searchTerm`
 
-## API Endpoints
+The value in the path is what you are looking up. It is typically one of:
 
-### POST /api/tracking
+- A **carrier tracking number** (e.g. `9200190379218000011551`)
+- An **order name** from Shopify (e.g. `#1234` or `1234`, depending on how the shop stores it)
 
-Fetches tracking information for a given tracking number.
+If nothing matches (or auth fails), Wonderment responds as if the order was not found.
 
-Request body:
+### The `t` auth token
+
+Many shops require a small proof that the visitor owns the order. That proof is the query param `t`: a **Base64-encoded JSON** object.
+
+Example JSON:
+
+```json
+{ "email": "customer@example.com" }
+```
+
+Encode it (any Base64 tool works):
+
+```bash
+echo -n '{"email":"customer@example.com"}' | base64
+# eyJlbWFpbCI6ImN1c3RvbWVyQGV4YW1wbGUuY29tIn0=
+```
+
+Supported fields inside the JSON:
+
+| Field | Purpose |
+| --- | --- |
+| `email` | Customer email associated with the order |
+| `phone` | Customer phone associated with the order |
+| `query` | Optional alternate search string (overrides the path `searchTerm` when present) |
+
+In the demo page, the widget accepts a combined string:
+
+```text
+<searchTerm>?t=<base64-token>
+```
+
+It splits on `?t=`, then calls your local route:
+
+```http
+POST /api/tracking/<searchTerm>?t=<base64-token>
+```
+
+Your server then calls Wonderment with the same `searchTerm` and `t`.
+
+### Example response
+
+A successful search returns one or more shipments. The widget uses the first one:
+
 ```json
 {
-    "searchTerm": "tracking_number_here"
-}
-```
-
-Response:
-```json
-{
-    "shipments": [
+  "shipments": [
+    {
+      "trackingCode": "9200190379218000011551",
+      "carrierName": "USPS",
+      "statusDetails": {
+        "status": "DELIVERED",
+        "details": "Delivered",
+        "date": "2024-04-09T14:30:00Z"
+      },
+      "events": [
         {
-            "statusDetails": {
-                "status": "DELIVERED"
-            },
-            "events": [
-                {
-                    "date": "2024-04-09T14:30:00Z",
-                    "status": "Delivered",
-                    "locationDisplay": "New York, NY"
-                }
-                // ... more events
-            ]
+          "date": "2024-04-09T14:30:00Z",
+          "status": "Delivered",
+          "locationDisplay": "New York, NY"
         }
-    ]
+      ],
+      "order": {
+        "id": "...",
+        "name": "#1234"
+      }
+    }
+  ]
 }
 ```
 
-## Implementing the Widget
+Useful fields for a tracking UI:
 
-1. Include the tracking widget script in your HTML:
-```html
-<script type="module">
-    import { TrackingWidget } from './tracking-client.js';
-    const widget = new TrackingWidget('tracking-container');
-    widget.track('your_tracking_number');
-</script>
-```
+- `statusDetails.status` — high-level status (`IN_TRANSIT`, `OUT_FOR_DELIVERY`, `DELIVERED`, …)
+- `events` — timeline rows (date, status, location)
+- `trackingCode` / `carrierName` — what to show the customer
+- `order.name` — Shopify order label when the search was by order
 
-2. Add a container element:
+## Implementing the widget
+
+1. Add a container:
+
 ```html
 <div id="tracking-container"></div>
 ```
 
-## Development
+2. Import the widget and call `track` with search term + token:
 
-The server uses Express.js and includes:
-- CORS support
-- JSON body parsing
-- Static file serving
-- Error handling
-- Request logging
+```html
+<script type="module">
+  import { TrackingWidget } from './tracking-client.js';
 
-To modify the widget styling, update the CSS in the `render` method of `TrackingWidget` class in `tracking-client.js`.
+  const widget = new TrackingWidget('tracking-container');
+  widget.track('YOUR_TRACKING_OR_ORDER?t=YOUR_BASE64_TOKEN');
+</script>
+```
 
-## Testing
+Styling lives in `index.html` (status tag colors) and in the HTML returned by `TrackingWidget.render` in `tracking-client.ts` / `.js`.
 
-1. Start the server with `node server.js`
-2. Use the example page at `http://localhost:3000`
-3. Check the browser console and server logs for debugging information
+## Project structure
 
-## Common Issues
+| File | Description |
+| --- | --- |
+| `server.js` | Runnable Express proxy used by the Quick Start |
+| `tracking-client.ts` / `.js` | Browser widget (TypeScript source + JS used by the page) |
+| `index.html` | Demo page |
+| `ShipmentsApiExample.ts` | Typed server class with caching and rate limiting |
+| `TrackingWidget.ts` | Alternate minimal widget sketch |
+| `routes/tracking.ts` | Router-style version of the proxy |
 
-- **404 Not Found**: Ensure your API key is valid and the tracking number format is correct
-- **CORS Errors**: The server includes CORS support by default. Modify the CORS configuration in `server.js` if needed
-- **Module Errors**: Ensure you're using `type="module"` in your script tag when importing the tracking widget
+For learning the live API path used by the demo, start with **`server.js` + `tracking-client.ts` + `index.html`**.
 
-## Security Notes
+## Common issues
 
-- Never expose your API key in client-side code
-- The server includes basic error handling and logging
-- Consider adding rate limiting for production use
+| Symptom | Likely cause |
+| --- | --- |
+| `Token (t) is required` | `track(...)` was called without `?t=...`, or the string did not split correctly |
+| `401` / “We couldn't find that order” | Email/phone in the token does not match the order, or the search term is wrong |
+| `402` | Shop needs an active Wonderment paid plan for Shipments Search |
+| `403` | API key missing the `shipments:read` (or equivalent) scope |
+| Empty “No tracking information found” | Search returned `shipments: []` — check term, shop, and token |
+| Module import errors in the browser | Use `type="module"` on the script tag (see `index.html`) |
 
-## Contributing
+## Security notes
 
-1. Fork the repository
-2. Create your feature branch
-3. Commit your changes
-4. Push to the branch
-5. Create a new Pull Request
+- Keep `WONDERMENT_DEMO_API_KEY` only on the server (`.env` / environment), never in client JS
+- Treat `t` as customer-scoped proof of access; generate it on a trusted system when you send tracking links
+- This demo is intentionally small — add rate limiting and stricter validation before production (see `ShipmentsApiExample.ts` for a starting point)
 
 ## License
 
-This project is licensed under the MIT License - see the LICENSE file for details. 
+This project is licensed under the MIT License — see the [LICENSE](LICENSE) file for details.
